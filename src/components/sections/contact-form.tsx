@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Check } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { Reveal } from "@/components/ui/reveal";
 import { SITE } from "@/lib/site";
 
-const SUBJECT_KEYS = ["sourcing", "distribution", "brokerage", "general"] as const;
+const SUBJECT_KEYS = [
+  "sourcing",
+  "distribution",
+  "brokerage",
+  "partnership",
+  "other",
+] as const;
 const VOLUME_KEYS = [
   "below_10k",
   "10k_100k",
@@ -18,8 +24,13 @@ const VOLUME_KEYS = [
 
 const RATE_LIMIT_MS = 30_000;
 
+type ApiResponse =
+  | { success: true }
+  | { success: false; error: string };
+
 export default function ContactForm() {
   const t = useTranslations("contact_page");
+  const locale = useLocale() as "en" | "de";
   const [subject, setSubject] = useState<(typeof SUBJECT_KEYS)[number]>(
     SUBJECT_KEYS[0]
   );
@@ -34,22 +45,26 @@ export default function ContactForm() {
     e.preventDefault();
     setError(null);
 
-    // Client-side rate-limit (30s between submits per session).
+    // Client-side cooldown so a fat-fingered double click doesn't 429.
     const last = Number(sessionStorage.getItem("contact_last") || "0");
-    if (Date.now() - last < RATE_LIMIT_MS) return;
+    if (Date.now() - last < RATE_LIMIT_MS) {
+      setError(t("form_error_rate_limit"));
+      return;
+    }
 
     const form = e.currentTarget;
     const fd = new FormData(form);
     const payload = {
-      name: String(fd.get("name") || ""),
-      company: String(fd.get("company") || ""),
-      email: String(fd.get("email") || ""),
-      phone: String(fd.get("phone") || ""),
+      name: String(fd.get("name") || "").trim(),
+      company: String(fd.get("company") || "").trim(),
+      email: String(fd.get("email") || "").trim(),
+      phone: String(fd.get("phone") || "").trim(),
       subject,
-      volume,
-      message: String(fd.get("message") || ""),
-      // Honeypot — must be empty
-      website: String(fd.get("website") || ""),
+      volume: t(`volumes.${volume}` as never) as string,
+      message: String(fd.get("message") || "").trim(),
+      locale,
+      // Honeypot — must remain empty
+      honeypot: String(fd.get("honeypot") || ""),
     };
 
     setSubmitting(true);
@@ -59,8 +74,23 @@ export default function ContactForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Bad response");
+      const json = (await res.json().catch(() => null)) as ApiResponse | null;
+
+      if (!res.ok || !json?.success) {
+        if (res.status === 429) {
+          setError(t("form_error_rate_limit"));
+        } else if (res.status === 400 && json && !json.success && json.error === "validation_failed") {
+          setError(t("form_error_validation"));
+        } else {
+          setError(t("form_error"));
+        }
+        return;
+      }
+
       sessionStorage.setItem("contact_last", String(Date.now()));
+      form.reset();
+      setSubject(SUBJECT_KEYS[0]);
+      setVolume(VOLUME_KEYS[0]);
       setSent(true);
     } catch {
       setError(t("form_error"));
@@ -129,29 +159,37 @@ export default function ContactForm() {
             <Reveal delay={0.15}>
               <form
                 onSubmit={onSubmit}
+                noValidate
                 className="shadow-card-lg relative overflow-hidden rounded-2xl border border-[var(--border-light)] bg-white p-8 md:p-12"
               >
                 {/* Honeypot — visually hidden, must remain empty */}
                 <div
-                  className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden"
                   aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "-9999px",
+                    width: 1,
+                    height: 1,
+                    overflow: "hidden",
+                  }}
                 >
-                  <label htmlFor="website">Website</label>
+                  <label htmlFor="honeypot">Website</label>
                   <input
                     type="text"
-                    id="website"
-                    name="website"
+                    id="honeypot"
+                    name="honeypot"
                     tabIndex={-1}
                     autoComplete="off"
                   />
                 </div>
 
-                <AnimatePresence>
+                <AnimatePresence mode="wait">
                   {sent ? (
                     <motion.div
                       key="ok"
                       initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.5 }}
                       className="flex flex-col items-start gap-6 py-12"
                     >
@@ -171,11 +209,10 @@ export default function ContactForm() {
                       initial={false}
                       className="grid grid-cols-1 gap-6 md:grid-cols-2"
                     >
-                      <Field label={t("field_name")} id="name" required />
+                      <Field label={t("field_name")} id="name" required minLength={2} />
                       <Field
                         label={t("field_company")}
                         id="company"
-                        required
                         autoComplete="organization"
                       />
                       <Field
@@ -250,11 +287,21 @@ export default function ContactForm() {
                           name="message"
                           rows={5}
                           required
+                          minLength={10}
                           maxLength={5000}
                           placeholder={t("field_message_placeholder")}
                           className="mt-3 w-full resize-none rounded-lg border border-[var(--border-light-strong)] bg-white p-4 text-base text-[var(--navy)] placeholder:text-[var(--navy)]/35 focus:border-[var(--navy)] focus:outline-none focus:ring-2 focus:ring-[var(--navy)]/10"
                         />
                       </div>
+
+                      {error && (
+                        <p
+                          role="alert"
+                          className="md:col-span-2 -mt-2 text-sm text-red-600"
+                        >
+                          {error}
+                        </p>
+                      )}
 
                       <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-4 pt-2">
                         <p className="max-w-sm text-xs text-[var(--navy)]/55">
@@ -263,18 +310,21 @@ export default function ContactForm() {
                         <button
                           type="submit"
                           disabled={submitting}
-                          className="group inline-flex items-center gap-2 rounded-full bg-[var(--navy)] px-7 py-3.5 text-sm font-medium text-white transition-colors hover:bg-[var(--navy-700)] disabled:opacity-60"
+                          className="group inline-flex items-center gap-2 rounded-full bg-[var(--navy)] px-7 py-3.5 text-sm font-medium text-white transition-colors hover:bg-[var(--navy-700)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {t("form_submit")}
-                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                          {submitting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t("form_submit")}
+                            </>
+                          ) : (
+                            <>
+                              {t("form_submit")}
+                              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                            </>
+                          )}
                         </button>
                       </div>
-
-                      {error && (
-                        <p className="md:col-span-2 text-sm text-red-600">
-                          {error}
-                        </p>
-                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -293,12 +343,14 @@ function Field({
   type = "text",
   required,
   autoComplete,
+  minLength,
 }: {
   label: string;
   id: string;
   type?: string;
   required?: boolean;
   autoComplete?: string;
+  minLength?: number;
 }) {
   return (
     <div>
@@ -313,6 +365,7 @@ function Field({
         required={required}
         autoComplete={autoComplete}
         maxLength={300}
+        minLength={minLength}
         className="mt-3 w-full rounded-lg border border-[var(--border-light-strong)] bg-white px-4 py-3 text-base text-[var(--navy)] placeholder:text-[var(--navy)]/35 focus:border-[var(--navy)] focus:outline-none focus:ring-2 focus:ring-[var(--navy)]/10"
       />
     </div>

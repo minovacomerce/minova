@@ -429,10 +429,11 @@
     "field_message": "Brief",
     "field_message_placeholder": "Product, target markets, lead time, anything else relevant…",
     "subjects": {
-      "sourcing": "Sourcing brief",
+      "sourcing": "Sourcing",
       "distribution": "Distribution",
       "brokerage": "Brokerage",
-      "general": "General enquiry"
+      "partnership": "Partnership",
+      "other": "Other"
     },
     "volumes": {
       "below_10k": "Below 10k units",
@@ -446,6 +447,8 @@
     "form_success_title": "Brief received.",
     "form_success_body": "Thanks — a member of the Minova team will be in touch within one business day.",
     "form_error": "Something went wrong. Please try again or email us directly.",
+    "form_error_rate_limit": "Please wait a moment before submitting again.",
+    "form_error_validation": "Some fields look off — please check name, email and message.",
     "direct_phone": "PHONE",
     "direct_linkedin": "LINKEDIN",
     "direct_linkedin_value": "/minova-commerce",

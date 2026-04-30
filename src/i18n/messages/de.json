@@ -429,10 +429,11 @@
     "field_message": "Briefing",
     "field_message_placeholder": "Produkt, Zielmärkte, Lieferzeit, alles weitere Relevante…",
     "subjects": {
-      "sourcing": "Beschaffungs-Briefing",
+      "sourcing": "Beschaffung",
       "distribution": "Distribution",
       "brokerage": "Vermittlung",
-      "general": "Allgemeine Anfrage"
+      "partnership": "Partnerschaft",
+      "other": "Sonstiges"
     },
     "volumes": {
       "below_10k": "Unter 10k Einheiten",
@@ -446,6 +447,8 @@
     "form_success_title": "Briefing erhalten.",
     "form_success_body": "Danke — ein Mitglied des Minova-Teams meldet sich innerhalb eines Werktags.",
     "form_error": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder schreiben Sie uns direkt eine E-Mail.",
+    "form_error_rate_limit": "Bitte einen Moment warten, bevor Sie erneut absenden.",
+    "form_error_validation": "Einige Felder sind nicht korrekt — bitte Name, E-Mail und Nachricht prüfen.",
     "direct_phone": "TELEFON",
     "direct_linkedin": "LINKEDIN",
     "direct_linkedin_value": "/minova-commerce",
