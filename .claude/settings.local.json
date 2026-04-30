@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(mv codec-pro *)",
+      "Bash(mv minova-brand-package *)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --use-npm --yes)",
+      "Bash(mv _codec-pro-backup ../_minova-codec-pro-backup)",
+      "Bash(mv _brand-backup ../_minova-brand-backup)"
+    ]
+  }
+}
