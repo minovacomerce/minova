@@ -6,6 +6,7 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Reveal } from "@/components/ui/reveal";
 import { SITE } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 const SUBJECT_KEYS = [
   "sourcing",
@@ -23,6 +24,11 @@ const VOLUME_KEYS = [
 ] as const;
 
 const RATE_LIMIT_MS = 30_000;
+const PHONE_RE = /^[\d\s+()-]{4,}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type FieldName = "name" | "email" | "phone" | "message";
+type FieldErrors = Partial<Record<FieldName, string>>;
 
 type ApiResponse =
   | { success: true }
@@ -37,33 +43,85 @@ export default function ContactForm() {
   const [volume, setVolume] = useState<(typeof VOLUME_KEYS)[number]>(
     VOLUME_KEYS[0]
   );
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState<"none" | "rate" | "send" | "generic">(
+    "none"
+  );
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  function clearFieldError(field: FieldName) {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function validate(values: {
+    name: string;
+    email: string;
+    phone: string;
+    message: string;
+  }): FieldErrors {
+    const out: FieldErrors = {};
+    if (values.name.trim().length < 2) {
+      out.name = t("form_field_error_name");
+    }
+    if (!EMAIL_RE.test(values.email.trim())) {
+      out.email = t("form_field_error_email");
+    }
+    if (values.phone.trim().length > 0 && !PHONE_RE.test(values.phone.trim())) {
+      out.phone = t("form_field_error_phone");
+    }
+    if (values.message.trim().length < 5) {
+      out.message = t("form_field_error_message");
+    }
+    return out;
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
-
-    // Client-side cooldown so a fat-fingered double click doesn't 429.
-    const last = Number(sessionStorage.getItem("contact_last") || "0");
-    if (Date.now() - last < RATE_LIMIT_MS) {
-      setError(t("form_error_rate_limit"));
-      return;
-    }
+    setServerError("none");
 
     const form = e.currentTarget;
     const fd = new FormData(form);
+    const values = {
+      name: String(fd.get("name") || ""),
+      company: String(fd.get("company") || ""),
+      email: String(fd.get("email") || ""),
+      phone: String(fd.get("phone") || ""),
+      message: String(fd.get("message") || ""),
+    };
+
+    const fieldErrors = validate(values);
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      // Focus the first invalid field for keyboard users.
+      const firstInvalid = Object.keys(fieldErrors)[0] as FieldName;
+      const el = form.elements.namedItem(firstInvalid);
+      if (el instanceof HTMLElement) el.focus();
+      return;
+    }
+    setErrors({});
+
+    // Client-side cooldown — saves a server roundtrip on accidental double-clicks.
+    const last = Number(sessionStorage.getItem("contact_last") || "0");
+    if (Date.now() - last < RATE_LIMIT_MS) {
+      setServerError("rate");
+      return;
+    }
+
     const payload = {
-      name: String(fd.get("name") || "").trim(),
-      company: String(fd.get("company") || "").trim(),
-      email: String(fd.get("email") || "").trim(),
-      phone: String(fd.get("phone") || "").trim(),
+      name: values.name.trim(),
+      company: values.company.trim(),
+      email: values.email.trim(),
+      phone: values.phone.trim(),
       subject,
       volume: t(`volumes.${volume}` as never) as string,
-      message: String(fd.get("message") || "").trim(),
+      message: values.message.trim(),
       locale,
-      // Honeypot — must remain empty
       honeypot: String(fd.get("honeypot") || ""),
     };
 
@@ -78,11 +136,21 @@ export default function ContactForm() {
 
       if (!res.ok || !json?.success) {
         if (res.status === 429) {
-          setError(t("form_error_rate_limit"));
-        } else if (res.status === 400 && json && !json.success && json.error === "validation_failed") {
-          setError(t("form_error_validation"));
+          setServerError("rate");
+        } else if (res.status === 500) {
+          setServerError("send");
+        } else if (
+          res.status === 400 &&
+          json &&
+          !json.success &&
+          json.error === "validation_failed"
+        ) {
+          // Server-side disagreed with client validation — surface the
+          // generic banner. Field-specific server errors aren't surfaced
+          // because the server intentionally returns a single token.
+          setServerError("send");
         } else {
-          setError(t("form_error"));
+          setServerError("generic");
         }
         return;
       }
@@ -93,7 +161,7 @@ export default function ContactForm() {
       setVolume(VOLUME_KEYS[0]);
       setSent(true);
     } catch {
-      setError(t("form_error"));
+      setServerError("send");
     } finally {
       setSubmitting(false);
     }
@@ -209,7 +277,14 @@ export default function ContactForm() {
                       initial={false}
                       className="grid grid-cols-1 gap-6 md:grid-cols-2"
                     >
-                      <Field label={t("field_name")} id="name" required minLength={2} />
+                      <Field
+                        label={t("field_name")}
+                        id="name"
+                        required
+                        autoComplete="name"
+                        error={errors.name}
+                        onInput={() => clearFieldError("name")}
+                      />
                       <Field
                         label={t("field_company")}
                         id="company"
@@ -221,12 +296,16 @@ export default function ContactForm() {
                         type="email"
                         required
                         autoComplete="email"
+                        error={errors.email}
+                        onInput={() => clearFieldError("email")}
                       />
                       <Field
                         label={t("field_phone")}
                         id="phone"
                         type="tel"
                         autoComplete="tel"
+                        error={errors.phone}
+                        onInput={() => clearFieldError("phone")}
                       />
 
                       <div className="md:col-span-2">
@@ -287,20 +366,32 @@ export default function ContactForm() {
                           name="message"
                           rows={5}
                           required
-                          minLength={10}
                           maxLength={5000}
+                          aria-invalid={errors.message ? "true" : undefined}
+                          aria-describedby={
+                            errors.message ? "message-error" : undefined
+                          }
+                          onInput={() => clearFieldError("message")}
                           placeholder={t("field_message_placeholder")}
-                          className="mt-3 w-full resize-none rounded-lg border border-[var(--border-light-strong)] bg-white p-4 text-base text-[var(--navy)] placeholder:text-[var(--navy)]/35 focus:border-[var(--navy)] focus:outline-none focus:ring-2 focus:ring-[var(--navy)]/10"
+                          className={cn(
+                            "mt-3 w-full resize-none rounded-lg border bg-white p-4 text-base text-[var(--navy)] placeholder:text-[var(--navy)]/35 focus:outline-none focus:ring-2",
+                            errors.message
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
+                              : "border-[var(--border-light-strong)] focus:border-[var(--navy)] focus:ring-[var(--navy)]/10"
+                          )}
                         />
+                        {errors.message && (
+                          <p
+                            id="message-error"
+                            className="mt-1.5 text-xs text-red-600"
+                          >
+                            {errors.message}
+                          </p>
+                        )}
                       </div>
 
-                      {error && (
-                        <p
-                          role="alert"
-                          className="md:col-span-2 -mt-2 text-sm text-red-600"
-                        >
-                          {error}
-                        </p>
+                      {serverError !== "none" && (
+                        <ServerErrorBanner kind={serverError} />
                       )}
 
                       <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-4 pt-2">
@@ -315,7 +406,7 @@ export default function ContactForm() {
                           {submitting ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              {t("form_submit")}
+                              {t("form_submitting")}
                             </>
                           ) : (
                             <>
@@ -337,20 +428,50 @@ export default function ContactForm() {
   );
 }
 
+function ServerErrorBanner({
+  kind,
+}: {
+  kind: "rate" | "send" | "generic";
+}) {
+  const t = useTranslations("contact_page");
+  return (
+    <div
+      role="alert"
+      className="md:col-span-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+    >
+      {kind === "rate" && t("form_error_rate_limit")}
+      {kind === "generic" && t("form_error")}
+      {kind === "send" &&
+        t.rich("form_error_send_failed", {
+          link: (chunks) => (
+            <a
+              href={`mailto:${SITE.email}`}
+              className="font-medium text-red-800 underline underline-offset-2 hover:text-red-900"
+            >
+              {chunks}
+            </a>
+          ),
+        })}
+    </div>
+  );
+}
+
 function Field({
   label,
   id,
   type = "text",
   required,
   autoComplete,
-  minLength,
+  error,
+  onInput,
 }: {
   label: string;
   id: string;
   type?: string;
   required?: boolean;
   autoComplete?: string;
-  minLength?: number;
+  error?: string;
+  onInput?: () => void;
 }) {
   return (
     <div>
@@ -365,9 +486,21 @@ function Field({
         required={required}
         autoComplete={autoComplete}
         maxLength={300}
-        minLength={minLength}
-        className="mt-3 w-full rounded-lg border border-[var(--border-light-strong)] bg-white px-4 py-3 text-base text-[var(--navy)] placeholder:text-[var(--navy)]/35 focus:border-[var(--navy)] focus:outline-none focus:ring-2 focus:ring-[var(--navy)]/10"
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onInput={onInput}
+        className={cn(
+          "mt-3 w-full rounded-lg border bg-white px-4 py-3 text-base text-[var(--navy)] placeholder:text-[var(--navy)]/35 focus:outline-none focus:ring-2",
+          error
+            ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
+            : "border-[var(--border-light-strong)] focus:border-[var(--navy)] focus:ring-[var(--navy)]/10"
+        )}
       />
+      {error && (
+        <p id={`${id}-error`} className="mt-1.5 text-xs text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

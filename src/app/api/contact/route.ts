@@ -37,14 +37,23 @@ const SubjectEnum = z.enum([
   "other",
 ]);
 
+// Loose phone pattern — digits, spaces, +, parens, hyphens. Min 4 chars.
+// Optional, so empty string is also accepted.
+const phonePattern = /^[\d\s+()-]{4,}$/;
+
 const ContactSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email().max(200),
   company: z.string().max(200).optional().or(z.literal("")),
-  phone: z.string().max(50).optional().or(z.literal("")),
+  phone: z
+    .union([
+      z.literal(""),
+      z.string().max(50).regex(phonePattern),
+    ])
+    .optional(),
   subject: SubjectEnum,
   volume: z.string().max(100).optional().or(z.literal("")),
-  message: z.string().min(10).max(5000),
+  message: z.string().min(5).max(5000),
   locale: z.enum(["en", "de"]),
   // Honeypot — must remain empty. Bots that auto-fill every input get caught.
   honeypot: z.string().max(0).optional().or(z.literal("")),
