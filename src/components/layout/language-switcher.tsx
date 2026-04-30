@@ -215,34 +215,30 @@ function MobileSwitch({
   onSwitch: (next: Locale) => void;
 }) {
   return (
-    <div className="mt-8 border-t border-white/10 pt-6">
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-        Language
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {routing.locales.map((l) => {
-          const isActive = l === active;
-          return (
-            <button
-              key={l}
-              type="button"
-              onClick={() => onSwitch(l)}
-              aria-current={isActive ? "true" : undefined}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium uppercase tracking-wider transition-colors",
-                isActive
-                  ? "bg-white text-[var(--navy)]"
-                  : "border border-white/20 text-white/70 hover:border-white/60 hover:text-white"
-              )}
-            >
-              <span>{LANGUAGE_NAMES[l].code}</span>
-              <span className="text-xs font-normal capitalize tracking-normal opacity-70">
-                {LANGUAGE_NAMES[l].name}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+    <div
+      className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/15 p-0.5"
+      role="group"
+      aria-label="Language"
+    >
+      {routing.locales.map((l) => {
+        const isActive = l === active;
+        return (
+          <button
+            key={l}
+            type="button"
+            onClick={() => onSwitch(l)}
+            aria-current={isActive ? "true" : undefined}
+            className={cn(
+              "inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors",
+              isActive
+                ? "bg-white text-[var(--navy)]"
+                : "text-white/60 hover:text-white"
+            )}
+          >
+            {LANGUAGE_NAMES[l].code}
+          </button>
+        );
+      })}
     </div>
   );
 }

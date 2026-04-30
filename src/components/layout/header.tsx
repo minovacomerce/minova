@@ -44,11 +44,18 @@ export default function Header() {
 
   return (
     <header
-      className="fixed inset-x-0 top-0 z-50 bg-white border-b border-[var(--navy)]/[0.08]"
+      className={cn(
+        "fixed inset-x-0 top-0 z-50 transition-[background-color,border-color] duration-300",
+        open
+          ? "border-transparent bg-transparent"
+          : "border-b border-[var(--navy)]/[0.08] bg-white"
+      )}
       onMouseLeave={() => setMega(null)}
     >
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-5 md:h-20 md:px-10">
-        <Logo variant="navy" />
+      {/* Bar sits ABOVE the mobile overlay (which is z-40) so the close
+         button is clickable while the menu is open. */}
+      <div className="relative z-[60] mx-auto flex h-16 max-w-[1440px] items-center justify-between px-5 md:h-20 md:px-10">
+        <Logo variant={open ? "white" : "navy"} />
 
         <nav
           className="hidden items-center gap-1 lg:flex"
@@ -95,9 +102,14 @@ export default function Header() {
           aria-label={open ? tNav("close_menu") : tNav("open_menu")}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[var(--navy)] lg:hidden"
+          className={cn(
+            "inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors lg:hidden",
+            open
+              ? "text-white hover:bg-white/10"
+              : "text-[var(--navy)] hover:bg-[var(--navy)]/[0.05]"
+          )}
         >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {open ? <X className="h-6 w-6" strokeWidth={2.2} /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 

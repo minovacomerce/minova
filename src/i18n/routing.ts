@@ -4,6 +4,10 @@ export const routing = defineRouting({
   locales: ["en", "de"],
   defaultLocale: "en",
   localePrefix: "always",
+  // Always redirect "/" to /en — ignore Accept-Language and prior NEXT_LOCALE
+  // cookies. Users opt into German via the language switcher; direct /de/*
+  // links stay accessible.
+  localeDetection: false,
   pathnames: {
     "/": "/",
     "/about": {
